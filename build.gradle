@@ -1,0 +1,136 @@
+plugins {
+    id 'application'
+    id 'org.beryx.runtime' version '1.12.4'
+    id 'org.openjfx.javafxplugin' version '0.0.9'
+}
+
+group 'com.wavesfx'
+version '1.15.8'
+
+sourceCompatibility = 16
+targetCompatibility = 16
+
+repositories {
+    mavenCentral()
+    jcenter()
+    maven { url 'https://jitpack.io' }
+}
+
+configurations.all {
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+}
+
+mainClassName = 'com.wavesfx.wavesfx.Launcher'
+
+javafx {
+    version = "16"
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics']
+}
+
+compileJava {
+    options.encoding = "UTF-8"
+}
+
+compileTestJava {
+    options.encoding = "UTF-8"
+}
+
+dependencies {
+    implementation 'org.apache.logging.log4j:log4j-core:2.15.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.15.0'
+    implementation 'com.electronwill.night-config:toml:3.6.0'
+    implementation 'org.kordamp.ikonli:ikonli-javafx:11.3.4'
+    implementation 'org.kordamp.ikonli:ikonli-materialdesign-pack:11.3.4'
+    implementation 'javax.servlet:javax.servlet-api:4.0.1'
+    implementation 'io.reactivex.rxjava2:rxjavafx:2.2.2'
+    implementation 'io.reactivex.rxjava2:rxjava:2.2.19'
+    implementation 'com.github.wavesfx:WavesJ:16ee2ea0fe'
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.10.0'
+
+}
+
+//applicationDefaultJvmArgs = ['--add-exports=javafx.base/com.sun.javafx.event=org.controlsfx.controls']
+applicationDefaultJvmArgs = [
+        '-splash:./package/wavesfx_splash.png',
+        '-Djdk.tls.client.protocols=TLSv1.2'
+]
+
+task createProperties(dependsOn: processResources) {
+    doLast {
+        new File("$buildDir/resources/main/version.properties").withWriter { w ->
+            Properties p = new Properties()
+            p['version'] = project.version.toString()
+            p.store w, null
+        }
+    }
+}
+
+classes {
+    dependsOn createProperties
+}
+
+ext.os = org.gradle.internal.os.OperatingSystem.current()
+
+runtime {
+    options = ['--strip-debug', '--compress', '1', '--no-header-files', '--no-man-pages']
+    modules = ['java.naming', 'java.xml', 'java.scripting', 'jdk.unsupported', 'java.desktop']
+
+    jpackage {
+        skipInstaller = false
+        imageName = "SWRM"
+        installerName = 'SWRM'
+        appVersion = version
+        jvmArgs = ['-Djdk.tls.client.protocols=TLSv1.2', '-splash:$APPDIR/wavesfx_splash.png']
+        installerOptions = [
+                '--vendor', 'SWRM',
+                '--license-file', 'LICENSE'
+        ]
+        if (os.windows) {
+            imageOptions = ['--icon', './package/wavesfx_icon.ico']
+            installerType = "msi"
+            installerOptions += ['--win-upgrade-uuid', 'd4a56a68-bdc2-4138-8572-84fc72c11fbc',
+                                '--win-dir-chooser',
+                                '--win-menu',
+                                '--win-shortcut'
+            ]
+        } else if(os.macOsX) {
+            imageOptions = ['--icon', './package/wavesfx_mac_icon.icns',]
+            installerType = 'dmg'
+        } else if (os.unix) {
+            imageOptions = ['--icon', './package/wavesfx_linux_icon.png']
+            installerType = "deb"
+            installerOptions += [
+                    '--linux-shortcut'
+            ]
+        }
+    }
+}
+
+def buildDir = "$buildDir"
+tasks.runtime.doLast {
+    copy {
+        includeEmptyDirs = false
+        from("package") {
+            include "wavesfx_splash.png"
+        }
+        into buildDir + "/image/bin/package"
+    }
+}
+
+tasks.jpackageImage.doLast {
+    copy {
+        includeEmptyDirs = false
+        from("package") {
+            include "wavesfx_splash.png"
+        }
+        if (os.windows) {
+            into buildDir + "/jpackage/WavesFX/app"
+        } else if (os.macOsX) {
+            into buildDir + "/jpackage/WavesFX.app/Contents/app"
+        } else if (os.unix) {
+            into buildDir + "/jpackage/WavesFX/lib/app"
+        }
+    }
+}
